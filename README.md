@@ -4,3 +4,10 @@ Es un compendio con los mejores 250 álbumes de Rock Progresivo del sitio ProgAr
 Los pdf se generaron a partir de HTML + JS usando PagedJS para crear una versión imprimible y también encuadernable.
 
 Mucho está hecho por IA, los scripts python y los html. Se puede continuar desde allí si es que se quiere mejorar, o se puede ir a la carpeta imprimir donde están los libros.
+
+Así quedó:
+
+!(assets/1.jpeg)  
+!(assets/2.jpeg)  
+!(assets/3.jpeg)  
+!(assets/4.jpeg)  
