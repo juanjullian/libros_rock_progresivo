@@ -7,7 +7,7 @@ Mucho está hecho por IA, los scripts python y los html. Se puede continuar desd
 
 Así quedó:
 
-!(assets/1.jpeg)  
-!(assets/2.jpeg)  
-!(assets/3.jpeg)  
-!(assets/4.jpeg)  
+![](assets/1.jpeg)  
+![](assets/2.jpeg)  
+![](assets/3.jpeg)  
+![](assets/4.jpeg)  
