@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Libro Progresivo con Paged.js (versión minimal)</title>
+  <!-- Paged.js -->
+  <script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"></script>
+
+  <style>
+    @page {
+      size: letter;
+  margin: 1.5cm;
+  @bottom-center {
+    content: counter(page);
+    
+  }
+}
+
+
+/* Empezar conteo desde la página 2 con el número 100 */
+/*@page:nth(2) {
+  counter-reset: page 100;
+}*/
+    body {
+      font-family: serif;
+      font-size: 10pt;
+      line-height: 1.4;
+      color: black;
+      margin: 0; 
+      padding: 0;
+    }
+    /* Forzamos el salto de página para cada section */
+    section {
+     /* break-before: page;
+      page-break-before: always;*/
+      /* Aseguramos que los elementos flotantes se contengan */
+      overflow: hidden;
+      position: relative;
+
+    }
+    /* Limpieza de flotados para evitar que el contenido se separe */
+    section::after {
+      content: "";
+      display: block;
+      clear: both;
+    }
+    .pagedjs_page {
+
+    }
+    .band-header {
+      font-size: 24pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 0.5em;
+    }
+    .country {
+      font-style: italic;
+      color: gray;
+      margin-bottom: 1em;
+    }
+    .bio {
+      text-align: justify;
+      white-space: pre-line;
+    }
+    .cover-image {
+      float: right;
+      width: 50%;
+      max-height: 20cm;
+      object-fit: contain;
+      border: 1px solid black;
+      padding: 0.25rem;
+      margin-left: 1rem;
+      margin-bottom: 1rem;
+    }
+    .album-title {
+      font-size: 16pt;
+      font-weight: bold;
+      margin-top: 0;
+    }
+    .tracklist, .lineup { white-space: pre-wrap; }
+    .review-columns {
+      columns: 3;
+      column-gap: 1rem;
+      text-align: justify;
+    }
+    .review-columns p {
+      text-indent: 1.5em;
+      margin: 0 0 1em 0;
+    }
+    /* Contenedor para elementos flex, evitando que se rompan entre páginas */
+    .flex-container {
+      display: flex;
+      gap: 1rem;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .flex-item {
+      width: 50%;
+    }
+    .qr-wrapper {
+  display: flex;
+  gap: 1rem;
+  justify-content: left;
+  align-items: center;
+  height: 100px;
+  margin: 1rem 0;
+}
+
+.qr-wrapper img {
+  height: 100%;
+  max-height: 150px;
+  width: auto;
+}
+
+  </style>
+</head>
+
+<body>
+  <div id="book-index"></div>
+
+  <!-- Contenedor para nuestro libro -->
+  <div id="contenido"></div>
+
+  <script src="js/createIndex.js" type="text/javascript"></script>
+
+  <!-- Script AL FINAL del body -->
+  <script>
+    var contenido = document.getElementById('contenido');
+
+    // Función para convertir saltos de párrafo dobles a <p>...</p>
+    function textToParagraphsHTML(text) {
+      // Escapamos etiquetas para evitar inyección
+      text = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return text
+        .split(/\\n\\s*\\n/)
+        .map(p => p.trim())
+        .filter(Boolean)
+        .map(p => `<p>${p}</p>`)
+        .join('');
+    }
+
+    function renderBanda(nombre, info) {
+      return `
+        <section class="page-break">
+          <h1 class="band-header"><span class="book-index" data-book-index="${nombre}">${nombre}</span></h1>
+          <p class="country">${info.biography.country}</p>
+          <img src="https://www.progarchives.com/${info.biography.photo_url}" class="cover-image" alt="Foto de la banda">
+          <p class="bio">${info.biography.translated_biography.replace(/\n/g, '<br>')}</p>
+        </section>
+      `;
+    }
+
+    function renderAlbumConResenas(album) {
+  // Extraer ID desde la URL del álbum
+  const albumIdMatch = album.album_url?.match(/id=(\d+)/);
+  const albumId = albumIdMatch ? albumIdMatch[1] : null;
+
+  let qrHTML = '';
+  if (albumId) {
+    qrHTML = `
+      <div class="qr-wrapper">
+        <img src="./qr/spotify/${albumId}.png">
+        <img src="./qr/tidal/${albumId}.png" onerror="this.style.display='none'">
+      </div>
+    `;
+  }
+
+  let reseñasHTML = '';
+  if (album.collaborator_reviews && album.collaborator_reviews.length > 0) {
+    const bloques = album.collaborator_reviews.map(r => {
+      const pHTML = textToParagraphsHTML(r.translated_text);
+      return `<strong>Autor: ${r.author}</strong><br>${pHTML}`;
+    }).join('<hr style="margin:1em 0; border:none; border-top:1px dashed #888;">');
+
+    reseñasHTML = `
+      <h3 style="font-weight: bold; margin-top:1em;">Reseñas:</h3>
+      <div class="review-columns">
+        ${bloques}
+      </div>
+    `;
+  }
+
+  return `
+    <section class="page-break">
+      <h2 class="album-title"><span class="book-index" data-book-index="${album.title}">${album.title}</span> (${album.year})</h2>
+      <p><em>${album.album_type}</em></p>
+      <div class="flex-container">
+        <div class="flex-item">
+          <img src="${album.cover_url}" alt="Carátula" style="max-width:100%; max-height:20cm; border:1px solid black;">
+        </div>
+        <div class="flex-item">
+          <pre class="tracklist">${album.tracklist}</pre>
+        </div>
+      </div>
+      <h3>Integrantes:</h3>
+      <pre class="lineup">${album.lineup}</pre>
+      ${qrHTML}
+      ${reseñasHTML}
+    </section>
+  `;
+}
+
+
+    async function generarLibro() {
+      
+      const resp = await fetch('./progarchives_albums_full_actualizado.json');
+      const data = await resp.json();
+      const bandas = Object.keys(data).slice(0,5);
+
+      let html = '';
+
+      bandas.forEach(nombre => {
+        const info = data[nombre];
+        try {
+          html += renderBanda(nombre, info);
+        } catch (err) {
+          console.warn(`Error en renderBanda para ${nombre}:`, err);
+        }
+
+        const albums = (info.albums || [])
+          .sort((a, b) => (parseInt(a.year) || 0) - (parseInt(b.year) || 0));
+
+        albums.forEach(album => {
+          try {
+            html += renderAlbumConResenas(album);
+          } catch (err) {
+            console.warn(`Error en renderAlbumConResenas para ${nombre} / ${album.title}:`, err);
+          }
+        });
+      });
+
+
+      // Insertamos todo el HTML generado de una sola vez
+      contenido.innerHTML = html;
+      // const blob = new Blob([html], { type: "text/html" });
+
+//       const a = document.createElement("a");
+// a.href = URL.createObjectURL(blob);
+// a.download = "libro_progresivo.html";
+// a.click();
+
+      // new Paged.Previewer().preview(contenido)
+      //   .then(() => console.log('Paginado completado'))
+      //   .catch(err => console.error('Error paginando:', err));
+
+           window.PagedConfig = {
+        before: function () {
+          createIndex({
+            spanClassIndex: "book-index",
+            indexElement: "#book-index",
+            alphabet: true,
+          });
+        },
+      };
+    }
+    window.onload = generarLibro;
+  </script>
+
+</body>
+</html>

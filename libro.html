@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Libro Progresivo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media print {
+      .page {
+        page-break-after: always;
+      }
+    }
+
+    .page {
+      width: 21cm;
+      height: 29.7cm;
+      padding: 2rem;
+      margin: auto;
+      border: 1px solid black;
+      box-sizing: border-box;
+      overflow: hidden;
+      padding-bottom: 3rem;
+    }
+
+    .review-columns {
+      column-count: 3;
+      column-gap: 1rem;
+      column-fill: auto;
+      margin-bottom: 1.5rem;
+    }
+
+    .review-columns p {
+      text-align: justify;
+      text-indent: 1.5em;
+      margin: 0 0 1em 0;
+      break-inside: avoid;
+    }
+
+    .review-block {
+      break-inside: avoid-column;
+      margin-bottom: 1.5rem;
+    }
+
+    .review-separator {
+      margin: 1.5rem 0;
+      border: 0;
+      border-top: 1px dashed #666;
+      break-inside: avoid;
+    }
+  </style>
+</head>
+<body class="bg-white text-black font-serif text-[10pt] leading-snug">
+  <div id="contenido"></div>
+
+  <script>
+    // 1. Función de medición mejorada
+    function measureHTML(htmlString, pageWidthPx, colCount = 1) {
+      const measureDiv = document.createElement('div');
+      measureDiv.style.position = 'absolute';
+      measureDiv.style.visibility = 'hidden';
+      measureDiv.style.width = `${pageWidthPx}px`;
+      measureDiv.style.height = 'auto';
+      
+      if (colCount === 3) {
+        measureDiv.className = 'review-columns';
+      }
+
+      measureDiv.innerHTML = htmlString;
+      document.body.appendChild(measureDiv);
+      
+      // Forzar cálculo de layout
+      const height = measureDiv.offsetHeight;
+      const width = measureDiv.offsetWidth;
+      
+      document.body.removeChild(measureDiv);
+      return { height, width };
+    }
+
+    // 2. Procesamiento de bloques de reseñas
+    function createReviewBlocks(reviews) {
+      const blocks = [];
+      reviews.forEach(review => {
+        const paragraphs = review.translated_text
+          .split(/\n\s*\n/)
+          .map(p => p.trim())
+          .filter(Boolean);
+
+        if (paragraphs.length === 0) return;
+
+        // Bloque autor + primer párrafo
+        blocks.push(`
+          <div class="review-block">
+            <strong>Autor: ${review.author}</strong>
+            <p>${paragraphs[0]}</p>
+          </div>
+        `);
+
+        // Párrafos restantes
+        for (let i = 1; i < paragraphs.length; i++) {
+          blocks.push(`<p>${paragraphs[i]}</p>`);
+        }
+
+        // Separador
+        blocks.push('<hr class="review-separator">');
+      });
+      return blocks;
+    }
+
+    // 3. Renderizado de páginas de álbum
+    function renderAlbumPages(album, pageWidthPx, pageHeightPx) {
+      const pages = [];
+      const safeMargin = 60; // Margen de seguridad ampliado
+
+      // Generar HTML de información del álbum
+      const albumInfoHTML = renderAlbumInfoHTML(album);
+      const { height: albumInfoHeight } = measureHTML(albumInfoHTML, pageWidthPx);
+      
+      // Crear bloques de reseñas
+      const reviewBlocks = album.collaborator_reviews?.length > 0 
+        ? createReviewBlocks(album.collaborator_reviews)
+        : [];
+
+      // Procesar primera página
+      let currentContent = [];
+      let currentHeight = albumInfoHeight;
+      let remainingBlocks = [...reviewBlocks];
+
+      // Añadir sección de reseñas si hay espacio
+      if (reviewBlocks.length > 0) {
+        const reviewTitleHTML = '<h3 class="text-lg font-bold mt-4">Reseñas</h3>';
+        const { height: titleHeight } = measureHTML(reviewTitleHTML, pageWidthPx);
+        
+        if (currentHeight + titleHeight < pageHeightPx - safeMargin) {
+          currentContent.push(reviewTitleHTML);
+          currentHeight += titleHeight;
+        }
+      }
+
+      // Procesar bloques para primera página
+      while (remainingBlocks.length > 0) {
+        const block = remainingBlocks[0];
+        const tempContent = [...currentContent, block];
+        const { height } = measureHTML(
+          `<div class="review-columns">${tempContent.join('')}</div>`,
+          pageWidthPx,
+          3
+        );
+
+        if (currentHeight + height < pageHeightPx - safeMargin) {
+          currentContent.push(remainingBlocks.shift());
+          currentHeight += height;
+        } else {
+          break;
+        }
+      }
+
+      // Construir primera página
+      pages.push(`
+        <div class="page">
+          ${albumInfoHTML}
+          ${currentContent.length > 0 ? `
+            <div class="review-columns">
+              ${currentContent.join('')}
+            </div>
+          ` : ''}
+        </div>
+      `);
+
+      // Procesar páginas adicionales
+      while (remainingBlocks.length > 0) {
+        let pageContent = [];
+        let pageHeight = 0;
+        const pageTitleHTML = '<h3 class="text-lg font-bold mb-4">Reseñas (continuación)</h3>';
+        const { height: titleHeight } = measureHTML(pageTitleHTML, pageWidthPx);
+        
+        pageContent.push(pageTitleHTML);
+        pageHeight += titleHeight;
+
+        while (remainingBlocks.length > 0) {
+          const block = remainingBlocks[0];
+          const tempContent = [...pageContent, block];
+          const { height } = measureHTML(
+            `<div class="review-columns">${tempContent.join('')}</div>`,
+            pageWidthPx,
+            3
+          );
+
+          if (pageHeight + height < pageHeightPx - safeMargin) {
+            pageContent.push(remainingBlocks.shift());
+            pageHeight += height;
+          } else {
+            break;
+          }
+        }
+
+        pages.push(`
+          <div class="page">
+            <div class="review-columns">
+              ${pageContent.join('')}
+            </div>
+          </div>
+        `);
+      }
+
+      return pages;
+    }
+
+    // 4. Funciones auxiliares (sin cambios)
+    function renderBandaPortadaHTML(bandaName, info) {
+      // ... (igual que en la versión original)
+    }
+
+    function renderAlbumInfoHTML(album) {
+      // ... (igual que en la versión original)
+    }
+
+    // 5. Lógica principal mejorada
+    async function cargarYMostrar() {
+      const res = await fetch('./progarchives_albums_full_actualizado.json');
+      const data = await res.json();
+      const pageWidthPx = 793;  // 21cm a 96dpi
+      const pageHeightPx = 1122; // 29.7cm a 96dpi
+
+      const bandas = Object.keys(data).sort().slice(0, 2);
+      let pagesHTML = [];
+
+      bandas.forEach(bKey => {
+        const info = data[bKey];
+        pagesHTML.push(renderBandaPortadaHTML(bKey, info));
+        
+        info.albums?.sort((a, b) => (a.year || 0) - (b.year || 0))
+          .forEach(album => {
+            pagesHTML.push(...renderAlbumPages(album, pageWidthPx, pageHeightPx));
+          });
+      });
+
+      document.getElementById('contenido').innerHTML = pagesHTML.join('');
+    }
+
+    cargarYMostrar();
+  </script>
+</body>
+</html>
